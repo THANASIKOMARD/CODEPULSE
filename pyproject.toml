@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codepulse"
+version = "0.1.0"
+description = "Find the files most likely to break next — churn, complexity, coupling from git history."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[project.scripts]
+codepulse = "codepulse.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
