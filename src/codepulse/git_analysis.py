@@ -37,6 +37,7 @@ class FileChange:
     path: str
     added: int
     removed: int
+    binary: bool = False
 
 
 @dataclass
@@ -74,6 +75,22 @@ def _run_git_log(repo: str, since: str) -> str:
     result.check_returncode()
     return result.stdout
 
+def _resolve_rename(path: str) -> str:
+    """Collapse git rename notation to the NEW path.
+
+    git prints renames two ways inside --numstat:
+        "old.py => new.py"
+        "src/{old => new}/file.py"
+    Keep the new name so churn accumulates on the file's current path.
+    """
+    if "=>" not in path:
+        return path
+    if "{" in path and "}" in path:
+        prefix, rest = path.split("{", 1)
+        inside, suffix = rest.split("}", 1)
+        _, new = inside.split("=>")
+        return (prefix + new.strip() + suffix).replace("//", "/")
+    return path.split("=>")[-1].strip()
 
 def parse_log(raw: str) -> list[Commit]:
     commits: list[Commit] = []
@@ -88,8 +105,12 @@ def parse_log(raw: str) -> list[Commit]:
             continue
         # numstat line for the current commit
         added_s, removed_s, path = line.split(_SEP, 2)
+        binary = added_s == "-" or removed_s == "-"
+        added = 0 if binary else int(added_s)
+        removed = 0 if binary else int(removed_s)
+        path = _resolve_rename(path)
         current.files.append(
-            FileChange(path=path, added=int(added_s), removed=int(removed_s))
+            FileChange(path=path, added=added, removed=removed, binary=binary)
         )
     return commits
 
