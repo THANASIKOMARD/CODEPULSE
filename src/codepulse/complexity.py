@@ -1,19 +1,38 @@
-"""Complexity metrics for codepulse (design stub — implementation TODO).
+"""Complexity metrics for codepulse.
 
-Goal: give each file a size/complexity number to multiply with churn.
-
-Planned approach (simple first, refine later):
-  * v1: non-blank, non-comment lines of code (LOC) — language-agnostic, cheap.
-  * v2: indentation-based complexity (avg/max indent depth) as a proxy for
-        nesting — correlates with cyclomatic complexity without a full parser.
-  * v3 (optional): real cyclomatic complexity per language via a parser.
-
-Hotspot score (next milestone):
-    hotspot = churn_commits * complexity
-  High on BOTH axes = the file worth refactoring first.
+We approximate complexity with *indentation depth* instead of a real parser:
+deeply nested code (many indent levels) is harder to read and change, and this
+works for any language with zero dependencies (Tornhill's whitespace complexity).
 """
+from __future__ import annotations
+
+from pathlib import Path
 
 
-def loc(path: str) -> int:
-    """TODO: count non-blank, non-comment lines of code in `path`."""
-    raise NotImplementedError
+def indentation_complexity(text: str) -> tuple[int, int]:
+    """Return (complexity, lines) for a blob of source text.
+
+    complexity = sum of indent *levels* over non-blank lines (nesting depth)
+    lines      = number of non-blank lines (a size proxy)
+    """
+    complexity = 0
+    lines = 0
+    for raw_line in text.splitlines():
+        line = raw_line.expandtabs(4)
+        if line.strip() == "":
+            continue
+        lines += 1
+        indent = len(line) - len(line.lstrip(" "))
+        complexity += indent // 4
+    return complexity, lines
+
+
+def file_complexity(abs_path: str | Path) -> tuple[int, int] | None:
+    """Return (complexity, lines) for a file, or None if missing/binary/unreadable."""
+    try:
+        text = Path(abs_path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    if "\x00" in text:            # crude binary check: real source has no NUL byte
+        return None
+    return indentation_complexity(text)
