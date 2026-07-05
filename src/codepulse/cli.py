@@ -1,7 +1,8 @@
 import argparse
+import sys
 
 from . import __version__
-from .git_analysis import get_commits, compute_churn
+from .git_analysis import get_commits, compute_churn, find_repo_root, NotAGitRepo
 
 def _print_table(stats, top):
     ranked = sorted(stats, key=lambda s: s.commits, reverse=True)[:top]
@@ -12,7 +13,12 @@ def _print_table(stats, top):
         print(f"{path:<50} {s.commits:>7} {s.added:>7} {s.removed:>7}")
 
 def cmd_scan(args):
-    commits = get_commits(args.path, since=args.since)
+    try:
+        root = find_repo_root(args.path)
+    except NotAGitRepo:
+        print(f"error: {args.path!r} is not inside a git repository.", file=sys.stderr)
+        return 1
+    commits = get_commits(str(root), since=args.since)
     if not commits:
         print("No commits found in the selected window.")
         return 0
@@ -20,11 +26,9 @@ def cmd_scan(args):
     _print_table(list(stats.values()), args.top)
     return 0
 
-
 def cmd_version(args):
     print(f"codepulse {__version__}")
     return 0
-
 
 def build_parser():
     parser = argparse.ArgumentParser(
@@ -43,7 +47,6 @@ def build_parser():
     ver.set_defaults(func=cmd_version)
 
     return parser
-
 
 def main(argv=None):
     parser = build_parser()

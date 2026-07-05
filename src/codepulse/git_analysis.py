@@ -11,11 +11,26 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 
 # A field separator we control. %x09 in a git pretty-format emits a literal TAB.
 _SEP = "\t"
 _COMMIT_MARK = "COMMIT"
 
+class NotAGitRepo(Exception):
+    """Raised when a path is not inside a git working tree."""
+
+
+def find_repo_root(path: str = ".") -> Path:
+    """Return the top-level dir of the git repo containing `path`."""
+    result = subprocess.run(
+        ["git", "-C", path, "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise NotAGitRepo(path)
+    return Path(result.stdout.strip())
 
 @dataclass
 class FileChange:
