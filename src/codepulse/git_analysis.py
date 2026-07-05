@@ -107,3 +107,11 @@ def compute_churn(commits: list[Commit]) -> dict[str, ChurnStat]:
             stat.added += fc.added
             stat.removed += fc.removed
     return stats
+
+def file_groups(commits: list[Commit]) -> list[set[str]]:
+    """One set of file paths per commit — raw material for co-change coupling.
+
+    Files that repeatedly appear in the same set are 'temporally coupled':
+    they change together, which often reveals hidden dependencies.
+    """
+    return [{fc.path for fc in c.files} for c in commits]
