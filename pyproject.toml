@@ -13,5 +13,8 @@ license = { text = "MIT" }
 [project.scripts]
 codepulse = "codepulse.cli:main"
 
+[project.optional-dependencies]
+test = ["pytest"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
