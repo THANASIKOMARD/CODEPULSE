@@ -19,7 +19,13 @@ python -m codepulse scan .                       # scan current repo (last 90 da
 python -m codepulse scan <path> --since 5.years  # wider window
 python -m codepulse scan <path> --top 20         # show more files
 python -m codepulse scan <path> --json           # machine-readable output
+
+python -m codepulse trend <file> .               # see how one file's metrics changed across scans
 ```
+
+Every `scan` saves its results to `<repo>/.codepulse/history.db` (git-ignored,
+local to the repo). Run `scan` a few times over days/weeks, then `trend`
+shows how a file's score/roi moved between those runs.
 
 ## Example
 
@@ -76,8 +82,11 @@ the ranking stays explainable.
 - [x] Unified `scan` report + `--json` output
 - [x] Test suite (parser, complexity, coupling, roles)
 
+**v0.2 — Trend Tracking**
+- [x] SQLite snapshot of every `scan` (`<repo>/.codepulse/history.db`)
+- [x] `trend` command (per-file history across past scans)
+
 **Next**
-- [ ] Trend tracking (snapshot metrics over time)
 - [ ] Drift detection (compare two points in history)
 - [ ] Feed hotspots into an LLM for root-cause diagnosis
 
