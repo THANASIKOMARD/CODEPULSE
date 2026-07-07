@@ -21,11 +21,16 @@ python -m codepulse scan <path> --top 20         # show more files
 python -m codepulse scan <path> --json           # machine-readable output
 
 python -m codepulse trend <file> .               # see how one file's metrics changed across scans
+
+python -m codepulse drift --from 3 --to 7 .      # diff two past scans by run_id
+python -m codepulse drift --from 3 --to 7 --json # machine-readable diff
 ```
 
 Every `scan` saves its results to `<repo>/.codepulse/history.db` (git-ignored,
 local to the repo). Run `scan` a few times over days/weeks, then `trend`
-shows how a file's score/roi moved between those runs.
+shows how a file's score/roi moved between those runs, and `drift` diffs
+any two of those runs directly — files added, removed, or changed, ranked
+by how much their roi moved.
 
 ## Example
 
@@ -86,8 +91,11 @@ the ranking stays explainable.
 - [x] SQLite snapshot of every `scan` (`<repo>/.codepulse/history.db`)
 - [x] `trend` command (per-file history across past scans)
 
+**v0.3 — Drift Detection**
+- [x] `drift` command (diff two runs by `run_id`: files added/removed/changed)
+- [x] Ranked by roi impact, `--json` output
+
 **Next**
-- [ ] Drift detection (compare two points in history)
 - [ ] Feed hotspots into an LLM for root-cause diagnosis
 
 ## License

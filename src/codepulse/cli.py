@@ -7,7 +7,8 @@ from dataclasses import asdict
 from . import __version__
 from .report import build_report
 from .git_analysis import NotAGitRepo, find_repo_root
-from .snapshot import save_snapshot, query_trend
+from .snapshot import save_snapshot, query_trend, get_run_metrics, list_runs
+from .drift import compute_drift
 
 
 def _print_table(reports, top):
@@ -63,6 +64,56 @@ def cmd_trend(args):
     return 0
 
 
+def _print_drift(drifts):
+    if not drifts:
+        print("No drift between these runs.")
+        return
+    for d in drifts:
+        if d.status == "added":
+            print(f"+ {d.path}  (new, roi={d.new['roi']:.0f})")
+        elif d.status == "removed":
+            print(f"- {d.path}  (removed, was roi={d.old['roi']:.0f})")
+        else:
+            roi_old, roi_new = d.deltas.get("roi", (d.old["roi"], d.new["roi"]))
+            extra = ", ".join(
+                f"{field}: {old_v}->{new_v}"
+                for field, (old_v, new_v) in d.deltas.items()
+                if field != "roi"
+            )
+            line = f"~ {d.path}  roi: {roi_old:.0f} -> {roi_new:.0f}"
+            if extra:
+                line += f"  ({extra})"
+            print(line)
+
+
+def cmd_drift(args):
+    try:
+        root = find_repo_root(args.path)
+    except NotAGitRepo:
+        print(f"error: {args.path!r} is not inside a git repository.", file=sys.stderr)
+        return 1
+    old_rows = get_run_metrics(root, args.from_run)
+    new_rows = get_run_metrics(root, args.to_run)
+    if not old_rows and not new_rows:
+        runs = list_runs(root)
+        if not runs:
+            print("No scan history yet — run `codepulse scan` a few times first.")
+        else:
+            available = ", ".join(str(r["run_id"]) for r in runs)
+            print(
+                f"error: no data for run_id {args.from_run} or {args.to_run}. "
+                f"Available run_ids: {available}",
+                file=sys.stderr,
+            )
+        return 1
+    drifts = compute_drift(old_rows, new_rows)
+    if args.json:
+        print(json.dumps([asdict(d) for d in drifts], indent=2))
+        return 0
+    _print_drift(drifts)
+    return 0
+
+
 def cmd_version(args):
     print(f"codepulse {__version__}")
     return 0
@@ -87,6 +138,13 @@ def build_parser():
     trend.add_argument("path", nargs="?", default=".", help="Path inside the repo (default: .)")
     trend.add_argument("--json", action="store_true", help="Output JSON instead of a table")
     trend.set_defaults(func=cmd_trend)
+
+    drift = sub.add_parser("drift", help="Compare two past scans and report what changed")
+    drift.add_argument("--from", dest="from_run", type=int, required=True, help="Older run_id")
+    drift.add_argument("--to", dest="to_run", type=int, required=True, help="Newer run_id")
+    drift.add_argument("path", nargs="?", default=".", help="Path inside the repo (default: .)")
+    drift.add_argument("--json", action="store_true", help="Output JSON instead of a table")
+    drift.set_defaults(func=cmd_drift)
 
     ver = sub.add_parser("version", help="Print version")
     ver.set_defaults(func=cmd_version)

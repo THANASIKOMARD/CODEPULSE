@@ -87,3 +87,27 @@ def query_trend(root: Path, path: str) -> list[dict]:
             (path,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+def list_runs(root: Path) -> list[dict]:
+    """Return all runs, oldest first — used to show what run_ids exist."""
+    db = db_path(root)
+    if not db.exists():
+        return []
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT run_id, timestamp, since_window FROM runs ORDER BY run_id ASC"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+def get_run_metrics(root: Path, run_id: int) -> list[dict]:
+    """Return every file's metrics for a single run."""
+    db = db_path(root)
+    if not db.exists():
+        return []
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM file_metrics WHERE run_id = ?", (run_id,)
+        ).fetchall()
+        return [dict(row) for row in rows]
