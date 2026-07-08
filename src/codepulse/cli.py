@@ -7,8 +7,9 @@ from dataclasses import asdict
 from . import __version__
 from .report import build_report
 from .git_analysis import NotAGitRepo, find_repo_root
-from .snapshot import save_snapshot, query_trend, get_run_metrics, list_runs
+from .snapshot import save_snapshot, query_trend, get_run_metrics, list_runs, list_tracked_paths
 from .drift import compute_drift
+from .decay import forecast_decay
 
 
 def _print_table(reports, top):
@@ -114,6 +115,53 @@ def cmd_drift(args):
     return 0
 
 
+def cmd_predict(args):
+    try:
+        root = find_repo_root(args.path)
+    except NotAGitRepo:
+        print(f"error: {args.path!r} is not inside a git repository.", file=sys.stderr)
+        return 1
+
+    paths = list_tracked_paths(root)
+    if not paths:
+        print("No scan history yet — run `codepulse scan` a few times first.")
+        return 0
+
+    forecasts = []
+    skipped = 0
+    for path in paths:
+        rows = query_trend(root, path)
+        forecast = forecast_decay(rows, args.threshold)
+        if forecast is None:
+            skipped += 1
+            continue
+        if forecast.days_until_cross is not None and forecast.days_until_cross <= args.within_days:
+            forecasts.append(forecast)
+    forecasts.sort(key=lambda f: f.days_until_cross)
+
+    if args.json:
+        print(json.dumps([asdict(f) for f in forecasts], indent=2))
+        return 0
+
+    if not forecasts:
+        print(f"No files predicted to cross roi={args.threshold:.0f} within {args.within_days} days.")
+        if skipped:
+            print(f"({skipped} file(s) skipped — fewer than 3 scans of history.)")
+        return 0
+
+    print(f"{'Days':>6} {'Cross date':>12} {'ROI now':>8} {'Slope/day':>10}  File")
+    print("-" * 70)
+    for f in forecasts:
+        cross_date = time.strftime("%Y-%m-%d", time.localtime(f.predicted_cross_timestamp))
+        print(
+            f"{f.days_until_cross:>6.1f} {cross_date:>12} {f.current_roi:>8.0f} "
+            f"{f.slope:>10.2f}  {f.path}"
+        )
+    if skipped:
+        print(f"\n({skipped} file(s) skipped — fewer than 3 scans of history.)")
+    return 0
+
+
 def cmd_version(args):
     print(f"codepulse {__version__}")
     return 0
@@ -145,6 +193,13 @@ def build_parser():
     drift.add_argument("path", nargs="?", default=".", help="Path inside the repo (default: .)")
     drift.add_argument("--json", action="store_true", help="Output JSON instead of a table")
     drift.set_defaults(func=cmd_drift)
+
+    predict = sub.add_parser("predict", help="Forecast when files will cross into a risk zone")
+    predict.add_argument("path", nargs="?", default=".", help="Path inside the repo (default: .)")
+    predict.add_argument("--threshold", type=float, default=500.0, help="roi value considered the risk zone (default: 500)")
+    predict.add_argument("--within-days", type=float, default=30.0, help="Only show files crossing within this many days (default: 30)")
+    predict.add_argument("--json", action="store_true", help="Output JSON instead of a table")
+    predict.set_defaults(func=cmd_predict)
 
     ver = sub.add_parser("version", help="Print version")
     ver.set_defaults(func=cmd_version)

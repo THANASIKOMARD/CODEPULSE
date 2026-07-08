@@ -100,6 +100,15 @@ def list_runs(root: Path) -> list[dict]:
         ).fetchall()
         return [dict(row) for row in rows]
 
+def list_tracked_paths(root: Path) -> list[str]:
+    """Return every distinct file path that has ever been recorded."""
+    db = db_path(root)
+    if not db.exists():
+        return []
+    with sqlite3.connect(db) as conn:
+        rows = conn.execute("SELECT DISTINCT path FROM file_metrics").fetchall()
+        return [row[0] for row in rows]
+
 def get_run_metrics(root: Path, run_id: int) -> list[dict]:
     """Return every file's metrics for a single run."""
     db = db_path(root)
