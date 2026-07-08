@@ -24,13 +24,19 @@ python -m codepulse trend <file> .               # see how one file's metrics ch
 
 python -m codepulse drift --from 3 --to 7 .      # diff two past scans by run_id
 python -m codepulse drift --from 3 --to 7 --json # machine-readable diff
+
+python -m codepulse predict .                    # forecast which files will cross the risk zone
+python -m codepulse predict . --threshold 300 --within-days 14
+python -m codepulse predict . --json
 ```
 
 Every `scan` saves its results to `<repo>/.codepulse/history.db` (git-ignored,
 local to the repo). Run `scan` a few times over days/weeks, then `trend`
-shows how a file's score/roi moved between those runs, and `drift` diffs
+shows how a file's score/roi moved between those runs, `drift` diffs
 any two of those runs directly — files added, removed, or changed, ranked
-by how much their roi moved.
+by how much their roi moved — and `predict` fits a linear regression over
+a file's roi history to forecast the date it will cross a risk threshold
+(default roi ≥ 500), so you can act before a file becomes a hotspot, not after.
 
 ## Example
 
@@ -95,7 +101,13 @@ the ranking stays explainable.
 - [x] `drift` command (diff two runs by `run_id`: files added/removed/changed)
 - [x] Ranked by roi impact, `--json` output
 
+**v0.4 — Decay Prediction**
+- [x] Linear regression over a file's roi history (`decay.py`)
+- [x] `predict` command — forecasts the date a file crosses a risk threshold
+- [x] `--threshold` / `--within-days` tuning, `--json` output
+
 **Next**
+- [ ] v1.0 — FastAPI + Chart.js dashboard
 - [ ] Feed hotspots into an LLM for root-cause diagnosis
 
 ## License
