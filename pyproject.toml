@@ -15,6 +15,7 @@ codepulse = "codepulse.cli:main"
 
 [project.optional-dependencies]
 test = ["pytest"]
+dashboard = ["fastapi>=0.100", "uvicorn>=0.23"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

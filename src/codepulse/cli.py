@@ -162,6 +162,30 @@ def cmd_predict(args):
     return 0
 
 
+def cmd_dashboard(args):
+    try:
+        root = find_repo_root(args.path)
+    except NotAGitRepo:
+        print(f"error: {args.path!r} is not inside a git repository.", file=sys.stderr)
+        return 1
+
+    try:
+        import uvicorn
+        from .server import create_app
+    except ImportError:
+        print(
+            'error: dashboard extras not installed. Run:\n'
+            '  pip install -e ".[dashboard]"',
+            file=sys.stderr,
+        )
+        return 1
+
+    app = create_app(root)
+    print(f"codepulse dashboard — http://127.0.0.1:{args.port}  (repo: {root})")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+    return 0
+
+
 def cmd_version(args):
     print(f"codepulse {__version__}")
     return 0
@@ -200,6 +224,11 @@ def build_parser():
     predict.add_argument("--within-days", type=float, default=30.0, help="Only show files crossing within this many days (default: 30)")
     predict.add_argument("--json", action="store_true", help="Output JSON instead of a table")
     predict.set_defaults(func=cmd_predict)
+
+    dashboard = sub.add_parser("dashboard", help="Launch a local web dashboard for this repo's scan history")
+    dashboard.add_argument("path", nargs="?", default=".", help="Path inside the repo (default: .)")
+    dashboard.add_argument("--port", type=int, default=8000, help="Local port to bind (default: 8000)")
+    dashboard.set_defaults(func=cmd_dashboard)
 
     ver = sub.add_parser("version", help="Print version")
     ver.set_defaults(func=cmd_version)

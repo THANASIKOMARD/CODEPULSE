@@ -28,6 +28,10 @@ python -m codepulse drift --from 3 --to 7 --json # machine-readable diff
 python -m codepulse predict .                    # forecast which files will cross the risk zone
 python -m codepulse predict . --threshold 300 --within-days 14
 python -m codepulse predict . --json
+
+pip install -e ".[dashboard]"                    # extra: only needed for the dashboard below
+python -m codepulse dashboard .                  # local web dashboard at http://127.0.0.1:8000
+python -m codepulse dashboard . --port 9000      # use a different port
 ```
 
 Every `scan` saves its results to `<repo>/.codepulse/history.db` (git-ignored,
@@ -37,6 +41,13 @@ any two of those runs directly — files added, removed, or changed, ranked
 by how much their roi moved — and `predict` fits a linear regression over
 a file's roi history to forecast the date it will cross a risk threshold
 (default roi ≥ 500), so you can act before a file becomes a hotspot, not after.
+
+`dashboard` serves all of the above as a local, read-only web UI over the same
+`.codepulse/history.db` — hotspot table, per-file trend chart, run-to-run drift
+chart, and the decay/prediction panel in one page. It binds to `127.0.0.1`
+only (no `--host` flag) and is scoped to whatever repo path you pass it, same
+as every other command. Chart.js is vendored locally rather than loaded from
+a CDN, so the page works fully offline once installed.
 
 ## Example
 
@@ -106,8 +117,18 @@ the ranking stays explainable.
 - [x] `predict` command — forecasts the date a file crosses a risk threshold
 - [x] `--threshold` / `--within-days` tuning, `--json` output
 
-**Next**
-- [ ] v1.0 — FastAPI + Chart.js dashboard
+**v1.0 — Dashboard**
+- [x] FastAPI backend (`/api/latest`, `/api/trend`, `/api/drift`, `/api/predict`, `/api/paths`, `/api/runs`)
+- [x] Local-only web UI (`127.0.0.1`) — hotspot table, trend chart, drift chart, decay panel
+- [x] Chart.js vendored locally (no CDN, no external runtime dependency)
+- [x] `dashboard` command
+
+**Next — Polish & Release**
+- [ ] Validate against a real production repo (in progress)
+- [ ] README demo GIF
+- [ ] GitHub Release
+
+**Ideas beyond v1.0**
 - [ ] Feed hotspots into an LLM for root-cause diagnosis
 
 ## License

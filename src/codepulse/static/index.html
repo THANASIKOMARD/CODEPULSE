@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>codepulse dashboard</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --risk: #f85149;
+    --good: #3fb950;
+    --accent: #58a6ff;
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 13px;
+    padding: 16px 24px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header { flex: none; margin-bottom: 12px; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .subtitle { color: var(--dim); margin: 0 0 6px; line-height: 1.5; }
+  #run-info { color: var(--dim); font-size: 12px; }
+
+  main.grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+  }
+  section {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 16px;
+    display: flex; flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  h2 { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; margin: 0 0 4px; flex: none; }
+  .desc { color: var(--dim); font-size: 12px; line-height: 1.5; margin: 0 0 8px; flex: none; }
+  .controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; flex: none; }
+  select, input, button {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; padding: 4px 8px; font: inherit;
+  }
+  button { cursor: pointer; }
+
+  .scroll-body { flex: 1; min-height: 0; overflow-y: auto; }
+  .chart-body { flex: 1; min-height: 0; position: relative; }
+  canvas { width: 100% !important; height: 100% !important; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: right; padding: 4px 8px; white-space: nowrap; }
+  th { color: var(--dim); font-weight: normal; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+  td.path { text-align: left; color: var(--text); }
+  tr.risk td.path::after { content: " !"; color: var(--risk); }
+
+  /* หน้าจอเตี้ย/แคบเกินไปสำหรับ grid เต็มจอ → ยอมให้ scroll ปกติแทน */
+  @media (max-width: 900px), (max-height: 700px) {
+    body { height: auto; overflow: visible; }
+    main.grid { grid-template-columns: 1fr; grid-template-rows: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>codepulse dashboard</h1>
+    <p class="subtitle">
+      วิเคราะห์ git history เพื่อหา "ไฟล์เสี่ยง" ที่มีโอกาสเกิดบั๊กหรือแก้ไขยากที่สุดในโปรเจกต์ -
+      วัดจากความถี่ที่ไฟล์ถูกแก้ (churn) คูณความซับซ้อนของโค้ด (complexity) แล้วถ่วงน้ำหนักตามบทบาทของไฟล์
+      (core/test/docs/config) และจำนวนไฟล์อื่นที่ผูกกันด้วย (coupling)
+    </p>
+    <div id="run-info">loading…</div>
+  </header>
+
+  <main class="grid">
+    <section>
+      <h2>Hotspots — ไฟล์เสี่ยงล่าสุด</h2>
+      <p class="desc">
+        เรียงจาก ROI มากไปน้อย (ยิ่งสูง = ยิ่งเสี่ยง) จาก scan ล่าสุด · Chn = จำนวนครั้งที่แก้ไข,
+        Cplx = ความซับซ้อน (ความลึกของ indentation), Lnk = จำนวนไฟล์ที่ผูกกันด้วย co-change,
+        Au = จำนวนคนเขียน — <span style="color:var(--risk)">!</span> หลังชื่อไฟล์ = bus factor risk (มีคนเดียวที่เข้าใจไฟล์นี้)
+      </p>
+      <div class="scroll-body">
+        <table id="hotspot-table">
+          <thead>
+            <tr>
+              <th>ROI</th><th>Score</th><th>Chn</th><th>Cplx</th>
+              <th>Role</th><th>Lnk</th><th>Au</th><th style="text-align:left">File</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Trend — แนวโน้มรายไฟล์</h2>
+      <p class="desc">
+        ดูว่า ROI ของไฟล์ที่เลือกเปลี่ยนไปอย่างไรในแต่ละรอบ scan ที่ผ่านมา
+        เส้นชันขึ้น = ไฟล์นี้ความเสี่ยงสะสมเพิ่มขึ้นเรื่อยๆ ตามเวลา
+      </p>
+      <div class="controls">
+        <label>File:</label>
+        <select id="trend-file"></select>
+      </div>
+      <div class="chart-body"><canvas id="trend-chart"></canvas></div>
+    </section>
+
+    <section>
+      <h2>Drift — เทียบ 2 รอบ scan</h2>
+      <p class="desc">
+        เลือก run 2 รอบมาเทียบว่าอะไรเปลี่ยนไปบ้าง · แท่งสีแดง = ROI เพิ่มขึ้น (เสี่ยงขึ้น),
+        แท่งสีเขียว = ROI ลดลง (ดีขึ้น) แสดง 10 ไฟล์ที่ขยับแรงที่สุด
+      </p>
+      <div class="controls">
+        <label>From run:</label><select id="drift-from"></select>
+        <label>To run:</label><select id="drift-to"></select>
+        <button id="drift-compare">Compare</button>
+      </div>
+      <div class="chart-body"><canvas id="drift-chart"></canvas></div>
+    </section>
+
+    <section>
+      <h2>Decay prediction — พยากรณ์วันเสี่ยง</h2>
+      <p class="desc">
+        พยากรณ์ (linear regression บนประวัติ ROI) ว่าไฟล์ไหนจะ "ข้าม" ค่า threshold ที่ตั้งไว้ภายในกี่วัน —
+        ปรับค่า threshold/จำนวนวันด้านล่างแล้วกด Refresh เพื่อคำนวณใหม่
+      </p>
+      <div class="controls">
+        <label>ROI threshold:</label><input id="decay-threshold" type="number" value="500" style="width:80px">
+        <label>Within days:</label><input id="decay-within-days" type="number" value="30" style="width:60px">
+        <button id="decay-refresh">Refresh</button>
+      </div>
+      <div class="scroll-body">
+        <table id="decay-table">
+          <thead><tr>
+            <th>Days</th><th>Cross date</th><th>ROI now</th><th>Slope/day</th><th style="text-align:left">File</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/chart.umd.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
